@@ -22,7 +22,7 @@ type Broadcaster struct {
 
 // StateSnapshot represents a cached state snapshot
 type StateSnapshot struct {
-	state     *protocol.StateSnapshot
+	state     *GatewayState
 	timestamp time.Time
 }
 
@@ -219,7 +219,7 @@ func (b *Broadcaster) PublishEvent(eventType protocol.EventType, channel string,
 }
 
 // GetSnapshot returns the cached state snapshot
-func (b *Broadcaster) GetSnapshot() *protocol.StateSnapshot {
+func (b *Broadcaster) GetSnapshot() *GatewayState {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 	return b.snapshot.state
