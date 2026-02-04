@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -11,27 +10,26 @@ import (
 
 	"github.com/openclaw/go-openclaw/internal/config"
 	"github.com/openclaw/go-openclaw/pkg/gateway"
-	"github.com/spf13/cobra"
 )
 
 var (
-	gateway *gateway.Gateway
+	gw *gateway.Gateway
 )
 
 // Execute starts the OpenClaw gateway
 func Execute() {
 	// Load configuration
-	config, err := config.Load()
+	cfg, err := config.Load("")
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
 	// Create gateway
-	gw := gateway.New(config.Gateway.Addr)
+	gw = gateway.New(cfg.GetAddr())
 
 	// Start gateway
-	log.Printf("🚀 Starting OpenClaw Gateway v%s", config.Gateway.Version)
-	log.Printf("🌐 Listening on %s", config.Gateway.Addr)
+	log.Printf("🚀 Starting OpenClaw Gateway v0.0.1")
+	log.Printf("🌐 Listening on %s", cfg.GetAddr())
 
 	if err := gw.Start(context.Background()); err != nil {
 		log.Fatalf("Failed to start gateway: %v", err)
@@ -66,8 +64,8 @@ func GetGateway() *gateway.Gateway {
 }
 
 // ExecuteWithGateway starts with a specific gateway instance
-func ExecuteWithGateway(gw *gateway.Gateway) {
-	gateway = gw
+func ExecuteWithGateway(g *gateway.Gateway) {
+	gw = g
 
 	log.Printf("🚀 Starting OpenClaw Gateway")
 
@@ -78,14 +76,19 @@ func ExecuteWithGateway(gw *gateway.Gateway) {
 	log.Printf("✅ Gateway started successfully")
 }
 
-// GetGatewayStats returns gateway statistics
-func GetGatewayStats() gateway.GatewayStats {
-	if gateway == nil {
-		return gateway.GatewayStats{
-			Running:  false,
-			Version:  "0.0.1",
+// GetGatewayState returns gateway state
+func GetGatewayState() *gateway.GatewayState {
+	if gw == nil {
+		return &gateway.GatewayState{
+			Running: false,
+			Version: "0.0.1",
 		}
 	}
 
-	return gateway.GetStats()
+	return gw.GetState()
+}
+
+// main is the entry point for the gateway application
+func main() {
+	Execute()
 }

@@ -13,40 +13,40 @@ import (
 
 // Runtime represents Agent runtime
 type Runtime struct {
-	llm          llm.Client
-	sessionMgr   *session.Manager
-	running      bool
-	mu           sync.RWMutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
+	llm        llm.Client
+	sessionMgr *session.Manager
+	running    bool
+	mu         sync.RWMutex
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
 }
 
 // Config represents Agent runtime configuration
 type Config struct {
-	LLMProvider   string       `mapstructure:"llm_provider"`
-	LLMModel      string       `mapstructure:"llm_model"`
-	MaxTokens     int          `mapstructure:"max_tokens"`
-	Temperature    float64      `mapstructure:"temperature"`
-	TopP          int          `mapstructure:"top_p"`
-	Timeout       time.Duration `mapstructure:"timeout"`
-	SystemPrompt   string       `mapstructure:"system_prompt"`
-	ToolsEnabled  bool         `mapstructure:"tools_enabled"`
-	APIKey        string       `mapstructure:"api_key"`
+	LLMProvider  string        `mapstructure:"llm_provider"`
+	LLMModel     string        `mapstructure:"llm_model"`
+	MaxTokens    int           `mapstructure:"max_tokens"`
+	Temperature  float64       `mapstructure:"temperature"`
+	TopP         int           `mapstructure:"top_p"`
+	Timeout      time.Duration `mapstructure:"timeout"`
+	SystemPrompt string        `mapstructure:"system_prompt"`
+	ToolsEnabled bool          `mapstructure:"tools_enabled"`
+	APIKey       string        `mapstructure:"api_key"`
 }
 
 // DefaultConfig returns default Agent configuration
 func DefaultConfig() *Config {
 	return &Config{
-		LLMProvider:   "anthropic",
-		LLMModel:      "claude-3-5-sonnet-20241022",
-		MaxTokens:     200000,
-		Temperature:    0.7,
-		TopP:          5,
-		Timeout:       30 * time.Second,
-		SystemPrompt:   "You are OpenClaw, an AI agent platform built to help developers build intelligent applications.\n\nYour role is to assist users with their development tasks, answer questions, and provide helpful suggestions.\n\nBe concise, practical, and focus on technical accuracy.",
-		ToolsEnabled:  false,
-		APIKey:        "",
+		LLMProvider:  "anthropic",
+		LLMModel:     "claude-3-5-sonnet-20241022",
+		MaxTokens:    200000,
+		Temperature:  0.7,
+		TopP:         5,
+		Timeout:      30 * time.Second,
+		SystemPrompt: "You are OpenClaw, an AI agent platform built to help developers build intelligent applications.\n\nYour role is to assist users with their development tasks, answer questions, and provide helpful suggestions.\n\nBe concise, practical, and focus on technical accuracy.",
+		ToolsEnabled: false,
+		APIKey:       "",
 	}
 }
 
@@ -73,12 +73,12 @@ func NewRuntime(config *Config) (*Runtime, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Runtime{
-		llm:          llmClient,
-		sessionMgr:   sessionMgr,
-		running:      false,
-		ctx:          ctx,
-		cancel:       cancel,
-		wg:           sync.WaitGroup{},
+		llm:        llmClient,
+		sessionMgr: sessionMgr,
+		running:    false,
+		ctx:        ctx,
+		cancel:     cancel,
+		wg:         sync.WaitGroup{},
 	}, nil
 }
 
@@ -94,7 +94,7 @@ func (r *Runtime) Start() error {
 	r.mu.Unlock()
 
 	log.Printf("🤖 Starting Agent runtime (provider=%s, model=%s)...",
-		string(r.llm.Provider()), r.llm.Model())
+		r.llm.Provider(), r.llm.Model())
 
 	r.wg.Add(1)
 	go r.eventLoop()
@@ -120,13 +120,13 @@ func (r *Runtime) Stop(ctx context.Context) error {
 // ProcessMessage processes a message and returns LLM response
 func (r *Runtime) ProcessMessage(ctx context.Context, channelID string, msg string) (string, error) {
 	// Get or create session for this channel
-	session, err := r.sessionMgr.GetOrCreate(channelID)
+	sess, err := r.sessionMgr.GetOrCreate(channelID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get session: %w", err)
 	}
 
 	// Build message history for context
-	history := r.buildMessageHistory(session)
+	history := r.buildMessageHistory(sess)
 
 	// Build user prompt
 	systemPrompt := r.buildSystemPrompt()
@@ -147,7 +147,7 @@ func (r *Runtime) ProcessMessage(ctx context.Context, channelID string, msg stri
 	}
 
 	// Update session history
-	session.Messages = append(session.Messages, &session.Message{
+	sess.Messages = append(sess.Messages, &session.Message{
 		Role:      "assistant",
 		Content:   response.Text,
 		Timestamp: time.Now(),
@@ -198,14 +198,14 @@ func (r *Runtime) buildSystemPrompt() string {
 func (r *Runtime) buildLLMRequest(msg string, history []llm.Message, systemPrompt string) llm.Request {
 	return llm.Request{
 		SystemPrompt: systemPrompt,
-		Messages:     append(history, llm.Message{
+		Messages: append(history, llm.Message{
 			Role:    "user",
 			Content: msg,
 		}),
-		MaxTokens:    200000,
-		Temperature:  0.7,
-		TopP:         5,
-		Stream:       false,
+		MaxTokens:   200000,
+		Temperature: 0.7,
+		TopP:        5,
+		Stream:      false,
 	}
 }
 

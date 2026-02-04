@@ -87,9 +87,9 @@ func (r *Registry) handleHealth(cmdCtx *CommandContext) CommandHandler {
 		uptime := int64(0) // TODO: implement
 
 		response := &protocol.HealthResponse{
-			Status:  "ok",
-			Uptime:  fmt.Sprintf("%d", uptime),
-			Checks:  []protocol.CheckResult{
+			Status: "ok",
+			Uptime: fmt.Sprintf("%d", uptime),
+			Checks: []protocol.CheckResult{
 				{Name: "server", Status: "ok", Message: "Running"},
 				{Name: "events", Status: "ok", Message: "Event system operational"},
 			},
@@ -102,7 +102,7 @@ func (r *Registry) handleHealth(cmdCtx *CommandContext) CommandHandler {
 			Status:    "ok",
 			Message:   "Health check requested",
 		}
-		event, _ := events.NewEvent(string(events.EventHealth), "check", healthData, 0)
+		event, _ := events.NewEvent(string(events.EventHealth), "check", healthData, "gateway")
 		cc.EventBus.PublishAsync(event)
 
 		return response, nil
@@ -113,8 +113,8 @@ func (r *Registry) handleHealth(cmdCtx *CommandContext) CommandHandler {
 func (r *Registry) handlePing(cmdCtx *CommandContext) CommandHandler {
 	return func(ctx context.Context, cc *CommandContext, params json.RawMessage) (interface{}, error) {
 		return map[string]any{
-			"pong":   true,
-			"time":   time.Now().Unix(),
+			"pong": true,
+			"time": time.Now().Unix(),
 		}, nil
 	}
 }
@@ -176,7 +176,7 @@ func (r *Registry) handleWorkspace(cmdCtx *CommandContext) CommandHandler {
 
 		case "get":
 			return &protocol.WorkspaceResponse{
-				Status:    "ok",
+				Status: "ok",
 				Workspace: &protocol.WorkspaceInfo{
 					ID:   "default",
 					Name: "Default Workspace",
@@ -230,7 +230,7 @@ func (r *Registry) handleNode(cmdCtx *CommandContext) CommandHandler {
 				NodeID:  req.ChannelID,
 				Details: make(map[string]any),
 			}
-			event, _ := events.NewEvent(string(events.EventNode), "notify", eventData, 0)
+			event, _ := events.NewEvent(string(events.EventNode), "notify", eventData, "gateway")
 			cc.EventBus.PublishAsync(event)
 
 			return &protocol.NodeResponse{

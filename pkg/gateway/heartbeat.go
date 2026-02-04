@@ -107,11 +107,6 @@ func (h *Heartbeat) sendPingToAll() {
 
 // sendPing sends a ping to a specific client
 func (h *Heartbeat) sendPing(client *Client) error {
-	h.lock.Lock()
-	h.seq++
-	seq := h.seq
-	h.lock.Unlock()
-
 	// Use WebSocket ping (more efficient than protocol-level ping)
 	client.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	if err := client.Conn.WriteRaw([]byte{}); err != nil {
@@ -145,7 +140,7 @@ func (h *Heartbeat) checkIdleClients() {
 	now := time.Now()
 
 	for _, client := range clients {
-		lastSeen := client.lastSeen()
+		lastSeen := client.lastSeen
 
 		// Check if client is idle
 		if now.Sub(lastSeen) > h.config.IdleTimeout {
@@ -157,7 +152,7 @@ func (h *Heartbeat) checkIdleClients() {
 
 // IsClientAlive checks if a client is alive (recent activity)
 func (h *Heartbeat) IsClientAlive(client *Client) bool {
-	lastSeen := client.lastSeen()
+	lastSeen := client.lastSeen
 	return time.Since(lastSeen) < h.config.PongTimeout
 }
 
@@ -191,11 +186,6 @@ func (h *Heartbeat) GetDeadClients() []*Client {
 
 // PingClient sends a ping to a specific client and waits for pong
 func (h *Heartbeat) PingClient(client *Client) error {
-	h.lock.Lock()
-	h.seq++
-	seq := h.seq
-	h.lock.Unlock()
-
 	// Create ping request
 	pingMsg := &protocol.ProtocolMessage{
 		Type:   protocol.TypeReq,
@@ -221,10 +211,11 @@ func (h *Heartbeat) GetStats() *HeartbeatStats {
 		TotalClients: len(clients),
 		AliveClients: 0,
 		IdleClients:  0,
+		Timestamp:    now,
 	}
 
 	for _, client := range clients {
-		lastSeen := client.lastSeen()
+		lastSeen := client.lastSeen
 
 		if time.Since(lastSeen) < h.config.PongTimeout {
 			stats.AliveClients++

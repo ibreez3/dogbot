@@ -150,6 +150,47 @@ type CheckResult struct {
 	Message string `json:"message,omitempty"`
 }
 
+// WorkspaceRequest represents a workspace request
+type WorkspaceRequest struct {
+	Action   string `json:"action,omitempty"`   // list, get, switch
+	Workspace string `json:"workspace,omitempty"`
+}
+
+// WorkspaceResponse represents a workspace response
+type WorkspaceResponse struct {
+	Status     string          `json:"status"`
+	Message    string          `json:"message,omitempty"`
+	Workspaces []WorkspaceInfo `json:"workspaces,omitempty"`
+	Workspace  *WorkspaceInfo  `json:"workspace,omitempty"`
+}
+
+// WorkspaceInfo represents workspace information
+type WorkspaceInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// NodeRequest represents a node request
+type NodeRequest struct {
+	Action    string `json:"action,omitempty"` // list, get, notify
+	NodeID    string `json:"node_id,omitempty"`
+	ChannelID string `json:"channel_id,omitempty"`
+}
+
+// NodeResponse represents a node response
+type NodeResponse struct {
+	Status  string     `json:"status"`
+	Message string     `json:"message,omitempty"`
+	Nodes  []NodeInfo `json:"nodes,omitempty"`
+	Node    *NodeInfo  `json:"node,omitempty"`
+}
+
+// NodeInfo represents node information
+type NodeInfo struct {
+	ID     string `json:"id"`
+	Status string `json:"status,omitempty"`
+}
+
 // Validate validates the connect request
 func (cr *ConnectRequest) Validate() error {
 	if cr.Token == "" {

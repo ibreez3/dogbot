@@ -32,8 +32,8 @@ func NewAnthropicClient(apiKey, model string, timeout time.Duration) (*Anthropic
 }
 
 // Provider returns LLM provider name
-func (c *AnthropicClient) Provider() string {
-	return string(ProviderAnthropic)
+func (c *AnthropicClient) Provider() Provider {
+	return ProviderAnthropic
 }
 
 // Model returns LLM model name
@@ -74,6 +74,20 @@ func (c *AnthropicClient) SendMessages(ctx context.Context, req *MultiMessageReq
 
 // StreamMessage streams message responses
 // TODO: Implement streaming
-func (c *AnthropicClient) StreamMessage(ctx context.Context, req *MultiMessageRequest, handler StreamHandler) error {
+func (c *AnthropicClient) StreamMessage(ctx context.Context, req *Request, handler StreamHandler) error {
 	return fmt.Errorf("streaming not yet implemented")
+}
+
+// CallTool executes a tool call
+// TODO: Implement tool calling
+func (c *AnthropicClient) CallTool(ctx context.Context, tool string, params map[string]interface{}) (*ToolResponse, error) {
+	return &ToolResponse{
+		Name:   tool,
+		Params: params,
+	}, nil
+}
+
+// Close closes the client and releases resources
+func (c *AnthropicClient) Close(ctx context.Context) error {
+	return nil
 }

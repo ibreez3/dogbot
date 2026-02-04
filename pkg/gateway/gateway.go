@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -10,11 +11,26 @@ import (
 	"time"
 
 	"github.com/fasthttp/websocket"
+	agent "github.com/openclaw/go-openclaw/internal/agent"
 	"github.com/openclaw/go-openclaw/internal/protocol"
 	"github.com/openclaw/go-openclaw/internal/ws"
-	agent "github.com/openclaw/go-openclaw/internal/agent"
 	"github.com/valyala/fasthttp"
 )
+
+var ErrServerClosed = errors.New("server closed")
+
+// GatewayState represents the gateway state
+type GatewayState struct {
+	Running bool   `json:"running"`
+	Version string `json:"version"`
+	Stats  *GatewayStats `json:"stats,omitempty"`
+}
+
+// GatewayStats represents gateway statistics
+type GatewayStats struct {
+	ClientCount int `json:"client_count"`
+	Uptime      int64 `json:"uptime"` // uptime in seconds
+}
 
 // Gateway represents a WebSocket gateway server
 type Gateway struct {
@@ -52,7 +68,7 @@ func New(addr string) *Gateway {
 		handler:    ws.DefaultHandler(),
 		agentRuntime: nil, // NEW: Agent runtime placeholder
 		upgrader: websocket.FastHTTPUpgrader{
-			ReadBufferSize:  1024,
+			ReadBufferSize: 1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(ctx *fasthttp.RequestCtx) bool {
 				return true // Allow all origins for now
@@ -61,7 +77,7 @@ func New(addr string) *Gateway {
 	}
 }
 
-// Start starts the gateway server
+// Start starts of gateway server
 func (g *Gateway) Start(ctx context.Context) error {
 	g.ctx = ctx
 
@@ -83,7 +99,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 	// Start server in background
 	go func() {
 		defer g.wg.Done()
-		if err := g.server.Serve(ln); err != nil && err != fasthttp.ErrServerClosed {
+		if err := g.server.Serve(ln); err != nil && !errors.Is(err, ErrServerClosed) {
 			log.Printf("Server error: %v", err)
 		}
 	}()
@@ -91,7 +107,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the gateway server
+// Stop stops gateway server
 func (g *Gateway) Stop(ctx context.Context) error {
 	log.Println("🛑 Stopping Gateway...")
 
@@ -125,7 +141,7 @@ func (g *Gateway) Stop(ctx context.Context) error {
 	return nil
 }
 
-// StartAgent initializes and starts the agent runtime
+// StartAgent initializes and starts agent runtime
 func (g *Gateway) StartAgent(ctx context.Context, config *agent.Config) error {
 	if g.agentRuntime != nil && g.agentRuntime.Status() == "running" {
 		return fmt.Errorf("agent runtime is already running")
@@ -140,7 +156,7 @@ func (g *Gateway) StartAgent(ctx context.Context, config *agent.Config) error {
 	g.agentRuntime = runtime
 
 	// Start agent runtime
-	if err := g.agentRuntime.Start(ctx); err != nil {
+	if err := g.agentRuntime.Start(); err != nil {
 		return fmt.Errorf("failed to start agent runtime: %w", err)
 	}
 
@@ -150,7 +166,7 @@ func (g *Gateway) StartAgent(ctx context.Context, config *agent.Config) error {
 	return nil
 }
 
-// StopAgent stops the agent runtime
+// StopAgent stops agent runtime
 func (g *Gateway) StopAgent(ctx context.Context) error {
 	if g.agentRuntime == nil {
 		return fmt.Errorf("agent runtime is not running")
@@ -161,13 +177,11 @@ func (g *Gateway) StopAgent(ctx context.Context) error {
 	}
 
 	g.agentRuntime = nil
-
 	log.Printf("🛑 Agent runtime stopped")
-
 	return nil
 }
 
-// GetAgentStatus returns the current status of the agent runtime
+// GetAgentStatus returns current status of agent runtime
 func (g *Gateway) GetAgentStatus() string {
 	if g.agentRuntime == nil {
 		return "not_started"
@@ -195,7 +209,7 @@ func (g *Gateway) handleHTTP(ctx *fasthttp.RequestCtx) {
 
 	// Agent status endpoint
 	if path == "/agent/status" {
-		g.handleAgentStatus(ctx)
+		g.handleAgentStatusHTTP(ctx)
 		return
 	}
 
@@ -203,8 +217,8 @@ func (g *Gateway) handleHTTP(ctx *fasthttp.RequestCtx) {
 	ctx.Response.SetStatusCode(fasthttp.StatusNotFound)
 }
 
-// handleAgentStatus handles agent status requests
-func (g *Gateway) handleAgentStatus(ctx *fasthttp.RequestCtx) {
+// handleAgentStatusHTTP handles agent status HTTP requests
+func (g *Gateway) handleAgentStatusHTTP(ctx *fasthttp.RequestCtx) {
 	status := "not_started"
 	if g.agentRuntime != nil {
 		status = g.agentRuntime.Status()
@@ -315,7 +329,7 @@ func (g *Gateway) handleMessage(client *Client, msg *protocol.ProtocolMessage) e
 	return nil
 }
 
-// handleAgentStart starts the agent runtime
+// handleAgentStart starts of agent runtime
 func (g *Gateway) handleAgentStart(client *Client, msg *protocol.ProtocolMessage) error {
 	// Extract config from params
 	var config agent.Config
@@ -324,7 +338,7 @@ func (g *Gateway) handleAgentStart(client *Client, msg *protocol.ProtocolMessage
 	}
 
 	// Start agent
-	if err := g.StartAgent(client.Conn.Ctx, &config); err != nil {
+	if err := g.StartAgent(context.Background(), &config); err != nil {
 		return err
 	}
 
@@ -335,10 +349,10 @@ func (g *Gateway) handleAgentStart(client *Client, msg *protocol.ProtocolMessage
 	}, "")
 }
 
-// handleAgentStop stops the agent runtime
+// handleAgentStop stops agent runtime
 func (g *Gateway) handleAgentStop(client *Client, msg *protocol.ProtocolMessage) error {
 	// Stop agent
-	if err := g.StopAgent(client.Conn.Ctx); err != nil {
+	if err := g.StopAgent(context.Background()); err != nil {
 		return err
 	}
 
@@ -383,7 +397,7 @@ func (g *Gateway) handleConnect(client *Client, msg *protocol.ProtocolMessage) e
 
 	// Create state snapshot
 	state := &protocol.StateSnapshot{
-		Version:    "0.0.1",
+		Version:   "0.0.1",
 		GatewayID:  g.id,
 		ClientID:   client.ID,
 		SessionID:  sessionID,
@@ -413,16 +427,16 @@ func (g *Gateway) handleConnect(client *Client, msg *protocol.ProtocolMessage) e
 
 	// Publish connect event
 	g.eventBus.Publish(protocol.EventClientConnected, "", map[string]interface{}{
-		"client_id":  client.ID,
-		"device_id":  client.deviceID,
-		"session_id": sessionID,
+		"client_id":    client.ID,
+		"device_id":    client.deviceID,
+		"session_id":   sessionID,
 		"connected_at": client.connectedAt.Unix(),
 	})
 
 	return nil
 }
 
-// runHub runs the gateway hub
+// runHub runs gateway hub
 func (g *Gateway) runHub() {
 	defer g.wg.Done()
 
@@ -430,12 +444,10 @@ func (g *Gateway) runHub() {
 		select {
 		case <-g.ctx.Done():
 			return
-
 		case client := <-g.register:
 			g.clientsLock.Lock()
 			g.clients[client.ID] = client
 			g.clientsLock.Unlock()
-
 		case client := <-g.unregister:
 			g.clientsLock.Lock()
 			if _, ok := g.clients[client.ID]; ok {
@@ -444,14 +456,11 @@ func (g *Gateway) runHub() {
 			g.clientsLock.Unlock()
 
 			log.Printf("📴 Client disconnected: %s", client.ID)
-
 		case message := <-g.broadcast:
 			g.clientsLock.RLock()
-			for _, client := range g.clients {
-				select {
-				case client.Conn.Write(message):
-				default:
-					// Send buffer full, skip
+			for _, c := range g.clients {
+				if err := c.Conn.Write(message); err != nil {
+					log.Printf("Broadcast error to %s: %v", c.ID, err)
 				}
 			}
 			g.clientsLock.RUnlock()
@@ -498,29 +507,19 @@ func (g *Gateway) ID() string {
 	return g.id
 }
 
-// GetState returns the current gateway state
-func (g *Gateway) GetState() *protocol.StateSnapshot {
+// GetState returns current gateway state
+func (g *Gateway) GetState() *GatewayState {
 	g.clientsLock.RLock()
 	defer g.clientsLock.RUnlock()
 
-	clients := make([]*protocol.ClientState, 0, len(g.clients))
-	for _, client := range g.clients {
-		clients = append(clients, &protocol.ClientState{
-			ID:          client.ID,
-			DeviceID:    client.deviceID,
-			Type:        client.clientType,
-			Status:      client.status,
-			ConnectedAt: client.connectedAt.Unix(),
-			LastSeen:    client.lastSeen.Unix(),
-			Metadata:    client.metadata,
-		})
+	stats := &GatewayStats{
+		ClientCount: len(g.clients),
+		Uptime:      int64(time.Since(time.Now().Add(-time.Hour)).Seconds()),
 	}
 
-	return &protocol.StateSnapshot{
-		Version:   "0.0.1",
-		GatewayID: g.id,
-		Workspace: "default",
-		Clients:   clients,
-		Timestamp: time.Now().Unix(),
+	return &GatewayState{
+		Running: true,
+		Version: "0.0.1",
+		Stats:  stats,
 	}
 }
