@@ -1,0 +1,226 @@
+package protocol
+
+import "encoding/json"
+
+// MessageType represents the type of protocol message
+type MessageType string
+
+const (
+	TypeReq   MessageType = "req"   // Request message from client
+	TypeRes   MessageType = "res"   // Response message to client
+	TypeEvent MessageType = "event" // Event message (broadcast)
+)
+
+// ProtocolMessage represents a WebSocket protocol message
+type ProtocolMessage struct {
+	Type    MessageType      `json:"type"`              // req, res, event
+	ID      string           `json:"id"`                // Request ID (for req/res)
+	Method  string           `json:"method,omitempty"`  // Method name (for req)
+	Params  json.RawMessage   `json:"params,omitempty"`  // Method parameters (for req)
+	Ok      bool             `json:"ok,omitempty"`      // Success flag (for res)
+	Payload interface{}      `json:"payload,omitempty"` // Response payload (for res)
+	Error   string           `json:"error,omitempty"`   // Error message (for res)
+	Event   string           `json:"event,omitempty"`   // Event name (for event)
+	Data    interface{}      `json:"data,omitempty"`    // Event data (for event)
+	Seq     int              `json:"seq,omitempty"`     // Sequence number (for event stream)
+	State   *StateSnapshot   `json:"state,omitempty"`   // State snapshot (optional)
+}
+
+// ConnectRequest represents the connect handshake request
+type ConnectRequest struct {
+	Token    string `json:"token"`              // Authentication token
+	DeviceID string `json:"device_id"`          // Device identifier
+	ClientID string `json:"client_id,omitempty"` // Client identifier (optional)
+	Version  string `json:"version,omitempty"`  // Client version
+}
+
+// HelloResponse represents the hello response after successful connect
+type HelloResponse struct {
+	Type    string       `json:"type"`
+	ID      string       `json:"id"`
+	Ok      bool         `json:"ok"`
+	Payload HelloPayload `json:"payload"`
+}
+
+// HelloPayload represents the hello response payload
+type HelloPayload struct {
+	Version   string        `json:"version"`
+	DeviceID  string        `json:"device_id"`
+	SessionID string        `json:"session_id"`
+	Workspace string        `json:"workspace"`
+	State     *StateSnapshot `json:"state"`
+}
+
+// StateSnapshot represents a state snapshot
+type StateSnapshot struct {
+	Version    string            `json:"version"`
+	GatewayID  string            `json:"gateway_id,omitempty"`
+	ClientID   string            `json:"client_id,omitempty"`
+	SessionID  string            `json:"session_id,omitempty"`
+	Workspace  string            `json:"workspace,omitempty"`
+	Clients    []*ClientState    `json:"clients,omitempty"`
+	Sessions   []*SessionState   `json:"sessions,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
+	Timestamp  int64             `json:"timestamp"`
+}
+
+// ClientState represents a client state
+type ClientState struct {
+	ID          string            `json:"id"`
+	DeviceID    string            `json:"device_id"`
+	Type        string            `json:"type"`
+	Status      string            `json:"status"`
+	ConnectedAt int64             `json:"connected_at"`
+	LastSeen    int64             `json:"last_seen"`
+	Capabilities []string         `json:"capabilities,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+// SessionState represents a session state
+type SessionState struct {
+	ID         string            `json:"id"`
+	ClientID   string            `json:"client_id"`
+	Channel    string            `json:"channel,omitempty"`
+	UserID     string            `json:"user_id,omitempty"`
+	CreatedAt  int64             `json:"created_at"`
+	LastActive int64             `json:"last_active"`
+	Status     string            `json:"status,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
+}
+
+// PingMessage represents a ping message
+type PingMessage struct {
+	Seq int `json:"seq"`
+}
+
+// PongMessage represents a pong message
+type PongMessage struct {
+	Seq int `json:"seq"`
+}
+
+// StateRequest represents a state request
+type StateRequest struct {
+	IncludeClients  bool `json:"include_clients,omitempty"`
+	IncludeSessions bool `json:"include_sessions,omitempty"`
+}
+
+// AgentRequest represents an agent-related request
+type AgentRequest struct {
+	SessionID string                 `json:"session_id,omitempty"`
+	ChannelID string                 `json:"channel_id,omitempty"`
+	Message   string                 `json:"message,omitempty"`
+	Action    string                 `json:"action,omitempty"` // start, stop, query
+	Options   map[string]interface{} `json:"options,omitempty"`
+}
+
+// AgentResponse represents an agent response
+type AgentResponse struct {
+	SessionID string                 `json:"session_id"`
+	ChannelID string                 `json:"channel_id"`
+	Status    string                 `json:"status"`
+	Message   string                 `json:"message,omitempty"`
+	Data      map[string]interface{} `json:"data,omitempty"`
+	Agents    []AgentInfo            `json:"agents,omitempty"`
+}
+
+// AgentInfo represents agent information
+type AgentInfo struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	SessionID string `json:"session_id,omitempty"`
+}
+
+// HealthRequest represents a health check request
+type HealthRequest struct {
+	CheckType string `json:"check_type,omitempty"` // ping, status, all
+}
+
+// HealthResponse represents a health check response
+type HealthResponse struct {
+	Status     string                 `json:"status"`
+	Uptime     string                 `json:"uptime,omitempty"`
+	Checks     []CheckResult          `json:"checks,omitempty"`
+	Timestamp  int64                  `json:"timestamp"`
+}
+
+// CheckResult represents a health check result
+type CheckResult struct {
+	Name    string `json:"name"`
+	Status  string `json:"status"`  // ok, error
+	Message string `json:"message,omitempty"`
+}
+
+// Validate validates the connect request
+func (cr *ConnectRequest) Validate() error {
+	if cr.Token == "" {
+		return ErrMissingToken
+	}
+	if len(cr.Token) > 256 {
+		return ErrTokenTooLong
+	}
+	if cr.DeviceID == "" {
+		return ErrMissingDeviceID
+	}
+	if len(cr.DeviceID) > 128 {
+		return ErrDeviceIDTooLong
+	}
+	return nil
+}
+
+// Errors
+var (
+	ErrMissingToken     = NewProtocolError("missing required field: token")
+	ErrTokenTooLong     = NewProtocolError("token exceeds maximum length (256)")
+	ErrMissingDeviceID  = NewProtocolError("missing required field: device_id")
+	ErrDeviceIDTooLong  = NewProtocolError("device_id exceeds maximum length (128)")
+	ErrInvalidMessage   = NewProtocolError("invalid message format")
+	ErrInvalidType      = NewProtocolError("invalid message type")
+	ErrMissingID        = NewProtocolError("missing required field: id")
+	ErrUnauthorized     = NewProtocolError("unauthorized")
+	ErrInternal         = NewProtocolError("internal server error")
+)
+
+// ProtocolError represents a protocol error
+type ProtocolError struct {
+	Message string `json:"message"`
+}
+
+// Error implements the error interface
+func (e *ProtocolError) Error() string {
+	return e.Message
+}
+
+// NewProtocolError creates a new protocol error
+func NewProtocolError(message string) *ProtocolError {
+	return &ProtocolError{Message: message}
+}
+
+// NewResponse creates a new response message
+func NewResponse(id string, ok bool, payload interface{}, errMsg string) *ProtocolMessage {
+	return &ProtocolMessage{
+		Type:    TypeRes,
+		ID:      id,
+		Ok:      ok,
+		Payload: payload,
+		Error:   errMsg,
+	}
+}
+
+// NewEvent creates a new event
+func NewEvent(eventType string, channel string, data interface{}, seq int) *Event {
+	var dataRaw json.RawMessage
+	if data != nil {
+		d, err := json.Marshal(data)
+		if err != nil {
+			return nil
+		}
+		dataRaw = d
+	}
+
+	return &Event{
+		Type:    EventType(eventType),
+		Channel: channel,
+		Data:    dataRaw,
+		Seq:     seq,
+	}
+}
